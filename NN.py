@@ -3,7 +3,6 @@ Neural Network , it's a generic neural network class, the layers number and size
 It's an exercise from https://iamtrask.github.io/2015/07/12/basic-python-network/
 """
 import numpy as np
-import mnist_loader
 
 def sigmoid(inX):
     return 1/(1 + np.exp(-inX))
@@ -15,7 +14,7 @@ class NN:
     def __init__(self, NNSize):
         self.NNSize = NNSize    
         self.weightsList = []
-        self.alpha = 0.001
+        self.alpha = 0.3 
         self.setupNN()
     
     def setupNN(self):
@@ -24,7 +23,10 @@ class NN:
         """
         for i in range(len(self.NNSize)-1):
             np.random.seed(1)
-            weights = 2*np.random.random((self.NNSize[i], self.NNSize[i+1])) - 1
+            # add a bais node for each layer except output layer
+            # refer to https://www.quora.com/In-artificial-neural-networks-what-actually-is-bias-unit
+            # the weights matrix will be like [n+1,m]
+            weights = 2*np.random.random((self.NNSize[i] + 1, self.NNSize[i+1])) - 1
             self.weightsList.append(weights)
         
     def feedDataSet(self, dataMat):
@@ -41,12 +43,18 @@ class NN:
         """
         feed input inX into NN, and get output in layerList
         """
+        # add one bais node for input layer
+        inX = np.append(inX, [[1]], 1)
+        layerList[0] = inX
         for i in range(len(self.NNSize)-1):
             # 1. get weights between layers
             weights = self.weightsList[i]         
             # 2. multiply input layer and weights
             layerList[i+1] =  sigmoid(inX.dot(weights))
-            inX = layerList[i+1] 
+            # 3. add a bais node
+            if (i+1) < (len(self.NNSize) - 1):
+                layerList[i+1] = np.append(layerList[i+1], [[1]], 1)
+            inX = layerList[i+1]
 
     def evaluate(self, testData):
         """
@@ -55,9 +63,13 @@ class NN:
         success = 0
         for x,y in testData:
            x = x.T
+           # add bias node
+           x = np.append(x, [[1]], 1)
            for i in range(len(self.NNSize)-1):
                weights = self.weightsList[i]
                x = sigmoid(x.dot(weights))
+               if i < len(self.NNSize) - 2:
+                   x = np.append(x, [[1]], 1)
            if np.argmax(x) == y:
               success += 1
         return success/float(len(testData))
@@ -77,7 +89,10 @@ class NN:
         # backward
         inError = Y - layerList[-1]
         for i in range(len(layerList)-1, 0, -1):
-            delta = inError*derivative(layerList[i])
+            delta = self.alpha*inError*derivative(layerList[i])
+            if i < len(layerList) - 1:
+                # remove bias node from delta because no input for bias node when forward
+                delta = np.delete(delta, -1, 1)
             inError = delta.dot(self.weightsList[i-1].T)
             self.weightsList[i-1] += layerList[i-1].T.dot(delta)
 
